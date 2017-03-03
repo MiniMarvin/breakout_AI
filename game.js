@@ -12,6 +12,7 @@
 //
 //=============================================================================
 
+//Retorna um método qualquer de uma classe adicionada em outra.
 if (!Function.prototype.bind) {
   Function.prototype.bind = function(obj) {
     var slice = [].slice,
@@ -35,6 +36,8 @@ if (!Object.create) {
   }
 }
 
+//quando utilizado em qualquer função executa seu método initialize assim que é iniciado, e por consequência
+////em sequência execita o método onstartup
 if (!Object.construct) {
   Object.construct = function(base) {
     var instance = Object.create(base);
@@ -79,7 +82,7 @@ Element = function() {
     showIf: function(on)      { if (on) this.show(); else this.hide(); },
     show:   function()        { this.style.display = '';      },
     hide:   function()        { this.style.display = 'none';  },
-    update: function(content) { this.innerHTML     = content; },
+    update: function(content) { this.innerHTML     = content; console.log(this.innerHTML);},
 
     hasClassName:    function(name)     { return (new RegExp("(^|\s*)" + name + "(\s*|$)")).test(this.className) },
     addClassName:    function(name)     { this.toggleClassName(name, true);  },
@@ -201,8 +204,10 @@ Game = {
            Game.ua.hasCanvas
   },
 
+  //inicia o jogo em canvas, com o jogo sendo breakout, ou seja, instancia a classe breakout e uma configuração qualquer.
   start: function(id, game, cfg) {
     if (Game.compatible())
+      //Realiza a construção do jogo atual e checa a instância atual do jogo em runner. E inicia o Breakout.
       return Game.current = Object.construct(Game.Runner, id, game, cfg).game; // return the game instance, not the runner (caller can always get at the runner via game.runner)
   },
 
@@ -246,6 +251,15 @@ Game = {
       Game.addEvent(document, 'DOMContentLoaded', fn);
   },
 
+  /**
+   * Desenha no canvas
+   *
+   * @param      {<type>}    width   The width
+   * @param      {<type>}    height  The height
+   * @param      {Function}  render  The render value
+   * @param      {<type>}    canvas  The canvas where it's going to be renderized
+   * @return     {<type>}    { description_of_the_return_value }
+   */
   renderToCanvas: function(width, height, render, canvas) { // http://kaioa.com/node/103
     canvas = canvas || document.createElement('canvas');
     canvas.width  = width;
@@ -254,6 +268,12 @@ Game = {
     return canvas;
   },
 
+  /**
+   * Adiciona um script javascript
+   *
+   * @param      {string}    src     O endereço/caminho do javascript a ser adicionado.
+   * @param      {Function}  cb      Função a ser executada quando o script for adicionado.
+   */
   loadScript: function(src, cb) {
     var head = document.getElementsByTagName('head')[0];
     var s = document.createElement('script');
@@ -494,7 +514,7 @@ Game = {
   },
 
   //-----------------------------------------------------------------------------
-
+  //realiza atualizações de frames
   Runner: {
 
     initialize: function(id, game, cfg) {
@@ -523,20 +543,147 @@ Game = {
 
     start: function() { // game instance should call runner.start() when its finished initializing and is ready to start the game loop
       this.lastFrame = Game.timestamp();
-      this.timer     = setInterval(this.loop.bind(this), this.interval);
+      //------------------------Area de Modificações de inicialização--------------------//
+      this.vezes = 0;
+      $.bind("keydown",function(){})
+
+      //TODO:adicionar rede neural aqui. entradas: dados do jogo como velocidade x, y e posição da bola
+      //posição do paddle, posição dos blocos
+      
+      this.net = new mindControl(5, 2, 0.02);
+      this.gen = new brain(20);
+      //this.gen.genNets(5 + Game.current.court.bricks.length , 2, 0.02);
+      //this.outval = 0;
+
+      //---------------------------------------------------------------------------------//
+      //cria um clone da função loop que fica executando em um intervalo, o loop principal de execução!
+      this.timer     = setInterval(this.loop.bind(this), this.interval); 
     },
 
     stop: function() {
       clearInterval(this.timer);
     },
-
+    /**
+     * Loop principal do jogo, atualiza os frames e envia dt como tempo de diferença atualizando o frame.
+     */
     loop: function() {
-      this._start  = Game.timestamp(); this.update((this._start - this.lastFrame)/1000.0); // send dt as seconds
-      this._middle = Game.timestamp(); this.draw();
+      this._start  = Game.timestamp(); 
+      this.update((this._start - this.lastFrame)/1000.0); // send dt as seconds
+      this._middle = Game.timestamp(); 
+      this.draw();
       this._end    = Game.timestamp();
-      this.updateStats(this._middle - this._start, this._end - this._middle);
+      this.updateStats(this._middle - this._start, this._end - this._middle); //tempo gasto atualizando a tela
       this.lastFrame = this._start;
+
+      //---------------------Neural Network Area---------------------//
+
+      //simulateKeyPress
+      this.keypressSimulation(32);
+      //return this.game.paddle.moveLeft();
+      //this.fireKey(document, 37);
+
+      if(this.vezes++ < 10){
+        console.log(Game.current); //Game.current.court -> variáreis do jogo
+        //console.log(Game.current.ball.dx); //Game.current.court -> variáreis do jogo
+      }
+      /*
+      if(this.buffscore > Game.current.score.score){
+        this.gen.setFitness(this.buffscore);
+        this.gen.next();
+        //this.keypressSimulation(32);
+      }
+      */
+
+      this.inputs = [];
+      this.inputs.push(Game.current.paddle.x - Game.current.ball.x);
+      this.inputs.push(Game.current.paddle.y - Game.current.ball.y);
+      this.inputs.push(Game.current.ball.dx);
+      this.inputs.push(Game.current.ball.dy);
+      this.inputs.push(Game.current.ball.speed);
+
+      
+      //if(this.vezes < 10000) {
+      //TODO: fazer a correção do algorítmo de movimentação.
+      var diff = Game.current.paddle.x - Game.current.ball.x;
+      //console.log(diff);
+      if(diff <= -50 ) {
+        this.net.evaluate(this.inputs, [0,1]);
+        //this.game.paddle.stopMovingLeft();
+        //this.game.paddle.setdir(1);
+        //this.game.paddle.moveRight();
+        //console.log("condition 1.");
+      } 
+      else if(diff >= -40) {
+        this.net.evaluate(this.inputs, [1,0]);
+        //this.game.paddle.stopMovingRight();
+        //this.game.paddle.moveLeft();
+        //console.log("condition 2.");
+      } 
+      else {
+        //this.game.paddle.stopMovingLeft();
+        //this.game.paddle.stopMovingRight();
+        this.net.evaluate(this.inputs, [0,0]);
+        //console.log("condition 5.");
+      }
+      
+      //}
+      
+      var out = this.net.execute(this.inputs);
+      //console.log(out);
+      //console.log(Game.current.paddle.x - Game.current.ball.x);
+
+      if(out > 0) {
+        this.game.paddle.stopMovingRight();
+        this.game.paddle.moveLeft();
+      } 
+      else if(out < 0) {
+        this.game.paddle.stopMovingLeft();
+        this.game.paddle.setdir(1);
+        this.game.paddle.moveRight();
+      } 
+
+      this.buffscore = Game.current.score.score;
+      
     },
+
+    /**
+     * Simula o aperto de um certo botão. (Adicionado para a Rede Neural).
+     *
+     * @param      {int}  keycode  O código do botão a ser apertado.
+     */
+    keypressSimulation: function(keycode) {
+      //simulateKeyPress
+      var e = new Event('keydown');
+      e.which = e.keyCode = keycode; // 32 is the keycode for the space bar
+      document.dispatchEvent(e);  
+
+      var e = new Event('keyup');
+      e.which = e.keyCode = keycode; // 32 is the keycode for the space bar
+      document.dispatchEvent(e);  
+    },
+
+    fireKey: function(el, keycode) {
+        //Set key to corresponding code. This one is set to the left arrow key.
+        var key = keycode;
+        if(document.createEventObject)
+        {
+            var eventObj = document.createEventObject();
+            eventObj.keyCode = key;
+            el.fireEvent("onkeydown", eventObj);   
+            el.fireEvent("onkeyup", eventObj);
+        }else if(document.createEvent)
+        {
+            var eventObj = document.createEvent("Events");
+            eventObj.initEvent("keydown", true, true);
+            eventObj.which = key;
+            el.dispatchEvent(eventObj);
+
+            eventObj = document.createEvent("Events");
+            eventObj.initEvent("keyup", true, true);
+            eventObj.which = key;
+            el.dispatchEvent(eventObj);
+        }
+    }, 
 
     initCanvas: function() {
       if (this.game && this.game.initCanvas)
@@ -632,6 +779,7 @@ Game = {
         return this.onkey(ev.keyCode, 'up');
     },
 
+    //define o que ocorre quando uma tecla é pressionada, é acionado por um event listener que espera um click
     onkey: function(keyCode, mode) {
       var n, k, i, state = this.game.current; // avoid same key event triggering in 2 different states by remembering current state so that even if an earlier keyhandler changes state, the later keyhandler wont kick in.
       for(n = 0 ; n < this.cfg.keys.length ; n++) {

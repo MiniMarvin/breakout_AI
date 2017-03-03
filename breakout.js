@@ -89,13 +89,16 @@ Breakout = {
     this.storage = runner.storage();
     this.color   = cfg.color;
     this.sound   = (this.storage.sound == "true");
-    this.court   = Object.construct(Breakout.Court,  this, cfg.court);
-    this.paddle  = Object.construct(Breakout.Paddle, this, cfg.paddle);
-    this.ball    = Object.construct(Breakout.Ball,   this, cfg.ball);
-    this.score   = Object.construct(Breakout.Score,  this, cfg.score);
+    this.court   = Object.construct(Breakout.Court,  this, cfg.court); //retira das configurações padrões o desenho dos blocos
+    this.paddle  = Object.construct(Breakout.Paddle, this, cfg.paddle); //retira das configurações padrões a barrinha
+    this.ball    = Object.construct(Breakout.Ball,   this, cfg.ball); //retira das configurações padrões a bolinha
+    this.score   = Object.construct(Breakout.Score,  this, cfg.score); //retira das configurações padrões o score
     Game.loadSounds({sounds: cfg.sounds});
   },
 
+  /**
+   * Função executada quando a função é primeiramente instanciada.
+   */
   onstartup: function() { // the event that fires the initial state transition occurs when Game.Runner constructs our StateMachine
     this.addEvents();
     this.runner.start(); // start the 60fps update/draw game loop
@@ -115,6 +118,11 @@ Breakout = {
     this.storage.sound = this.sound = !this.sound;
   },
 
+  /**
+   * Atualiza o jogo de acordo com o tempo transcorrido no processo dos frames
+   *
+   * @param      {<type>}  dt      Tempo percorrido
+   */
   update: function(dt) {
     this.court.update(dt);
     this.paddle.update(dt);
@@ -122,6 +130,11 @@ Breakout = {
     this.score.update(dt);
   },
 
+  /**
+   * Desenha o jogo na tela
+   *
+   * @param      {<type>}  ctx     The context
+   */
   draw: function(ctx) {
     ctx.save();
     ctx.clearRect(0, 0, this.width, this.height);
@@ -168,7 +181,9 @@ Breakout = {
     return this.runner.confirm("Abandon game?")
   },
 
-  loseBall: function() {
+  //loseBall: function() {
+  loseBall: function(net) {
+    if(net != null) net.next()
     this.playSound('loselife');
     if (this.score.loseLife())
       this.lose();
